@@ -1,0 +1,87 @@
+# sentinel-stack 기본 탐지 룰셋
+# Snort IDS 문법 참고 설계
+#
+# 형식:
+#   alert <프로토콜> <소스> <소스포트> -> <목적지> <목적지포트> (조건; msg:"설명"; sid:번호;)
+#
+# 프로토콜: tcp | udp | sentinel | any
+# 조건:
+#   flags:S           — TCP SYN 플래그
+#   threshold: count N, seconds S  — N초 내 S회 초과 시 발동
+#   sentinel_magic:!0x53454e54   — 잘못된 sentinel 매직
+#   retransmit_count:>N           — 재전송 N회 초과
+#   pkt_rate:>N                   — 패킷/초 N 초과
+# ──────────────────────────────────────────────────────────────────
+
+# ── TCP 공격 탐지 ──────────────────────────────────────────────────
+
+# SYN Flood 공격 탐지
+# 1초 내 20개 이상 SYN 패킷 → 서비스 거부 공격 의심
+alert tcp any any -> any any (
+    flags:S;
+    threshold: count 20, seconds 1;
+    msg:"SYN Flood Detected";
+    sid:1001;
+    rev:1;
+)
+
+# 포트 스캔 탐지
+# 5초 내 15개 이상 서로 다른 목적지 포트 → 스캔 의심
+alert tcp any any -> any any (
+    flags:S;
+    threshold: count 15, seconds 5, unique_dst_ports;
+    msg:"Port Scan Detected";
+    sid:1002;
+    rev:1;
+)
+
+# 과도한 패킷 전송
+# 1초 내 10,000 패킷 초과 → 비정상 트래픽
+alert any any any -> any any (
+    pkt_rate:>10000;
+    window:1s;
+    msg:"High Packet Rate Anomaly";
+    sid:1003;
+    rev:1;
+)
+
+# ── sentinel 프로토콜 이상 탐지 ────────────────────────────────────
+
+# 비인가 노드 접속 시도
+# 포트 9000으로 오는 패킷에 sentinel 매직 없음 → 프로토콜 위반
+alert tcp any any -> any 9000 (
+    sentinel_magic:!0x53454e54;
+    msg:"Invalid Magic Number - Possible Protocol Violation";
+    sid:2002;
+    rev:1;
+)
+
+# sentinel 재전송 폭주
+# 5초 내 10회 이상 동일 패킷 재전송 → 링크 장애 또는 공격 의심
+alert sentinel any any -> any any (
+    retransmit_count:>10;
+    window:5s;
+    msg:"Sentinel Retransmit Storm";
+    sid:2001;
+    rev:1;
+)
+
+# 비인가 노드 ID 사용
+# 노드 ID가 127 초과 (유효 범위 1~126) → 비인가 노드 의심
+alert tcp any any -> any 9000 (
+    sentinel_src_node:>127;
+    msg:"Unauthorized Node ID Detected";
+    sid:2003;
+    rev:1;
+)
+
+# ── 페이로드 크기 이상 탐지 ────────────────────────────────────────
+
+# 과대 페이로드
+# sentinel 패킷 페이로드가 최대 크기(4096) 초과 → 버퍼 오버플로 시도 의심
+alert sentinel any any -> any any (
+    payload_size:>4096;
+    msg:"Oversized Sentinel Payload";
+    sid:2004;
+    rev:1;
+)
