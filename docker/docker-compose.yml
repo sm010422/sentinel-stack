@@ -1,0 +1,100 @@
+# =============================================================================
+# sentinel-stack 멀티 노드 시뮬레이션
+#
+# 세 개의 컨테이너로 전술 네트워크를 시뮬레이션합니다:
+#   - commander: 지휘소 노드 (TCP 서버)
+#   - sensor:    센서 노드 (TCP 클라이언트)
+#   - analyzer:  패킷 분석기 (passive 모니터)
+#
+# 실행:
+#   docker-compose -f docker/docker-compose.yml up
+# =============================================================================
+
+version: '3.8'
+
+networks:
+  tactical-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/24
+
+services:
+
+  # ── Layer 1: RTOS 시뮬레이터 (독립 실행) ───────────────────────────────────
+  rtos:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: sentinel-rtos
+    networks:
+      - tactical-net
+    command: ["./build/rtos-scheduler/rtos_sim", "--algo", "rms", "--tasks", "5", "--duration", "30s"]
+    restart: "no"
+
+  # ── Layer 2: Commander 노드 ─────────────────────────────────────────────────
+  commander:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: sentinel-commander
+    networks:
+      tactical-net:
+        ipv4_address: 172.20.0.10
+    ports:
+      - "9000:9000"  # TCP 신뢰 채널
+      - "9001:9001/udp"  # UDP 고속 채널
+    command: [
+      "./build/socket-comm/comm_node",
+      "--id", "1",
+      "--role", "commander",
+      "--tcp-port", "9000",
+      "--udp-port", "9001"
+    ]
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "9000"]
+      interval: 5s
+      timeout: 3s
+      retries: 3
+
+  # ── Layer 2: Sensor 노드 ────────────────────────────────────────────────────
+  sensor:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: sentinel-sensor
+    networks:
+      tactical-net:
+        ipv4_address: 172.20.0.11
+    depends_on:
+      commander:
+        condition: service_healthy
+    command: [
+      "./build/socket-comm/comm_node",
+      "--id", "2",
+      "--role", "sensor",
+      "--connect", "172.20.0.10:9000",
+      "--subscribe", "SENSOR_DATA,STATUS"
+    ]
+
+  # ── Layer 3: 패킷 분석기 ────────────────────────────────────────────────────
+  analyzer:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    container_name: sentinel-analyzer
+    networks:
+      - tactical-net
+    cap_add:
+      - NET_ADMIN
+      - NET_RAW
+    depends_on:
+      - commander
+      - sensor
+    command: [
+      "./build/packet-analyzer/sentinel_pcap",
+      "-i", "eth0",
+      "--report", "/output/report.csv"
+    ]
+    volumes:
+      - ./output:/output
