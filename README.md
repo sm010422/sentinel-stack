@@ -121,17 +121,43 @@ sentinel-stack/
 │   │   └── test_parser.c
 │   └── CMakeLists.txt
 │
+├── hal/                         # Layer 4 — HAL 시뮬레이터
+│   ├── include/
+│   │   ├── hal_uart.h           # UART / RS-422 인터페이스
+│   │   ├── hal_i2c.h            # I2C 레지스터 파일
+│   │   ├── hal_spi.h            # SPI 전이중 인터페이스
+│   │   └── hal_can.h            # CAN 버스 프레임
+│   ├── src/
+│   │   ├── hal_uart_posix.c     # POSIX 파이프 기반 UART 시뮬레이션
+│   │   ├── hal_i2c_posix.c      # 레지스터 파일 기반 I2C 시뮬레이션
+│   │   ├── hal_spi_posix.c      # MOSI/MISO 파이프 SPI 시뮬레이션
+│   │   └── hal_can_posix.c      # 직렬화 프레임 파이프 CAN 시뮬레이션
+│   ├── tests/
+│   │   └── test_hal_loopback.c  # 전 인터페이스 루프백 테스트
+│   └── CMakeLists.txt
+│
+├── hil-simulator/               # Layer 5 — HIL 시뮬레이터
+│   ├── include/
+│   │   └── imu_sensor.h         # 6-DOF IMU 데이터 구조체
+│   ├── src/
+│   │   ├── imu_sim.c            # Box-Muller 노이즈 + 중력 투영
+│   │   └── hil_demo.c           # IMU → I2C → 비행컴퓨터 → CAN 파이프라인
+│   └── CMakeLists.txt
+│
 ├── demo/
-│   ├── run_all.sh               # 통합 데모 실행 스크립트
-│   └── scenario_01.sh           # 시나리오별 테스트
+│   ├── run_all.sh               # 통합 데모 실행 스크립트 (tmux 4분할)
+│   └── scenario_01.sh           # SYN Flood 탐지 시나리오
 │
 ├── docker/
-│   ├── Dockerfile               # Linux 빌드 환경
-│   └── docker-compose.yml       # 멀티 노드 시뮬레이션
+│   ├── Dockerfile               # Ubuntu 22.04 빌드 환경
+│   └── docker-compose.yml       # 멀티 노드 시뮬레이션 (3 컨테이너)
 │
 ├── qemu/
-│   ├── run_arm.sh               # ARM 에뮬레이션 실행
+│   ├── run_arm.sh               # QEMU ARM Cortex-M3 실행 스크립트
 │   └── linker.ld                # ARM 링커 스크립트
+│
+├── scripts/
+│   └── run_analysis.sh          # 정적/동적 코드 분석 자동화 스크립트
 │
 └── CMakeLists.txt               # 루트 빌드 설정 (크로스 플랫폼)
 ```
@@ -140,68 +166,65 @@ sentinel-stack/
 
 ## 빌드 및 실행
 
+> 상세 실행 가이드: **[docs/running-guide.md](docs/running-guide.md)**
+
 ### 요구사항
 
 | 항목 | macOS | Linux |
 |---|---|---|
-| 컴파일러 | Apple Clang 15+ / GCC 13+ | GCC 13+ |
-| 빌드 시스템 | CMake 3.20+, Ninja | CMake 3.20+, Ninja |
+| 컴파일러 | Apple Clang 14+ / GCC 13+ | GCC 13+ |
+| 빌드 시스템 | CMake 3.20+ | CMake 3.20+ |
 | 패킷 캡처 | libpcap (내장) | libpcap-dev |
 | 암호화 | OpenSSL 3.x | libssl-dev |
-| ARM 에뮬 | QEMU 8.x | QEMU 8.x |
-| 크로스 컴파일 | arm-none-eabi-gcc | arm-none-eabi-gcc |
+| 통합 데모 | tmux | tmux |
+| ARM 에뮬 (선택) | QEMU 8.x + arm-none-eabi-gcc | QEMU 8.x + gcc-arm-none-eabi |
 
-### macOS 빠른 시작
+### 빠른 시작
 
 ```bash
-# 1. 저장소 클론
-git clone https://github.com/YOUR_ID/sentinel-stack.git
-cd sentinel-stack
+# 의존성 설치 (macOS)
+brew install cmake openssl libpcap tmux
 
-# 2. 의존성 설치
-brew install cmake ninja libpcap openssl qemu
-brew install --cask gcc-arm-embedded
-
-# 3. 빌드 (전체)
-cmake -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
+# 빌드
+cmake -B build -G "Unix Makefiles" -DCMAKE_BUILD_TYPE=Release
 cmake --build build
 
-# 4. 개별 모듈 빌드
-cmake -B build -G Ninja -DBUILD_MODULE=rtos    # RTOS만
-cmake -B build -G Ninja -DBUILD_MODULE=comm    # 소켓 통신만
-cmake -B build -G Ninja -DBUILD_MODULE=pcap    # 패킷 분석기만
+# 전체 테스트 실행
+ctest --test-dir build --output-on-failure
+
+# 통합 데모 (4분할 tmux 터미널)
+./demo/run_all.sh
+
+# HIL 시뮬레이터 단독 실행
+./build/hil-simulator/hil_demo
 ```
 
-### Linux / Docker
+### 모듈별 빌드
 
 ```bash
-# Docker 환경으로 Linux 빌드
-docker build -t sentinel-stack ./docker/
-docker run --rm \
-  --cap-add=NET_ADMIN \
-  --cap-add=NET_RAW \
-  sentinel-stack
+cmake -B build -DBUILD_MODULE=rtos   # Layer 1: RTOS 스케줄러만
+cmake -B build -DBUILD_MODULE=comm   # Layer 2: 소켓 통신만
+cmake -B build -DBUILD_MODULE=pcap   # Layer 3: 패킷 분석기만
+cmake -B build -DBUILD_MODULE=hal    # Layer 4: HAL 시뮬레이터만
+cmake -B build -DBUILD_MODULE=hil    # Layer 5: HIL 시뮬레이터만
+cmake --build build
+```
 
-# 또는 docker-compose로 멀티 노드 시뮬레이션
+### Docker 멀티 노드 시뮬레이션
+
+```bash
 docker-compose -f docker/docker-compose.yml up
 ```
 
 ### QEMU ARM 에뮬레이션
 
 ```bash
-# ARM Cortex-M3 타겟 빌드
-make CROSS_COMPILE=arm-none-eabi- TARGET=qemu
+# 크로스 컴파일
+cmake -B build-arm -G "Unix Makefiles" -DBUILD_FOR_QEMU=ON
+cmake --build build-arm
 
-# QEMU 실행 (mps2-an385 보드 에뮬레이션)
+# QEMU 실행 (ARM Cortex-M3 / mps2-an385)
 ./qemu/run_arm.sh
-
-# 또는 직접 실행
-qemu-system-arm \
-  -machine mps2-an385 \
-  -cpu cortex-m3 \
-  -kernel build/rtos-scheduler/rtos_qemu.elf \
-  -nographic \
-  -serial stdio
 ```
 
 ---
