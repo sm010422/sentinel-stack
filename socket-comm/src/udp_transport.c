@@ -11,6 +11,7 @@
  */
 
 #include "protocol.h"
+#include "udp_transport.h"
 
 #include <stdio.h>
 #include <string.h>

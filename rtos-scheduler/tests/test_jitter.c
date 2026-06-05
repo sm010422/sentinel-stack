@@ -167,7 +167,7 @@ static void measure_scheduler_jitter(sched_algo_t algo, const char *algo_name)
     scheduler_t  s;
     rtos_task_t  t;
 
-    printf("[JITTER] %s 스케줄러 지터 측정 (실행시간=%dms)\n",
+    printf("[JITTER] %s 스케줄러 지터 측정 (실행시간=%ums)\n",
            algo_name, BENCH_DURATION_MS);
 
     (void)sched_init(&s, algo);

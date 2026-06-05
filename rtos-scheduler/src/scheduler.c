@@ -94,7 +94,7 @@ int task_validate(const rtos_task_t *task)
     if ((uint64_t)task->wcet_us > (uint64_t)task->deadline_ms * 1000ULL) {
         fprintf(stderr, "[TASK] 경고: wcet_us(%u) > deadline_ms*1000(%llu) (task_id=%u)\n",
                 task->wcet_us,
-                (unsigned long long)(task->deadline_ms * 1000U),
+                (unsigned long long)task->deadline_ms * 1000ULL,
                 task->task_id);
         /* 경고만 출력, 실패는 아님 */
     }
@@ -178,7 +178,6 @@ int sched_run(scheduler_t *s, uint32_t duration_ms)
 {
     uint64_t start_ms;
     uint64_t current_ms;
-    uint64_t end_ms;
     int      next_task;
 
     if (s == NULL || s->task_count == 0U) {
@@ -194,7 +193,6 @@ int sched_run(scheduler_t *s, uint32_t duration_ms)
     g_stop_requested   = 0;
     start_ms           = timer_get_ms();
     s->start_time_us   = timer_get_us();
-    end_ms             = (duration_ms > 0U) ? (start_ms + (uint64_t)duration_ms) : UINT64_MAX;
 
     printf("[RTOS] 스케줄러 시작: 알고리즘=%s, 태스크 수=%u, 실행시간=%ums\n",
            (s->algo == SCHED_ALGO_RMS) ? "RMS" : "EDF",
@@ -573,7 +571,7 @@ int main(int argc, char *argv[])
                 algo = SCHED_ALGO_RMS;
             }
         } else if (strcmp(argv[i], "--tasks") == 0) {
-            num_tasks = (uint32_t)atoi(argv[i + 1]);
+            num_tasks = (uint32_t)strtol(argv[i + 1], NULL, 10);
             if (num_tasks == 0U || num_tasks > MAX_TASKS) {
                 num_tasks = 3U;
             }

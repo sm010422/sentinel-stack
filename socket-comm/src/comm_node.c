@@ -11,6 +11,8 @@
 #include "crypto.h"
 #include "pubsub.h"
 #include "io_multiplexer.h"
+#include "tcp_transport.h"
+#include "udp_transport.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -20,17 +22,6 @@
 #include <assert.h>
 #include <time.h>
 
-/* TCP 전송 함수 전방 선언 */
-extern int  tcp_create_server(uint32_t port);
-extern int  tcp_accept(int server_fd, char *remote_addr);
-extern int  tcp_connect(const char *addr, uint32_t port);
-extern int  tcp_send_packet(int fd, const sentinel_packet_t *pkt);
-extern int  tcp_recv_packet(int fd, sentinel_packet_t *pkt);
-extern void tcp_close(int fd);
-extern int  udp_create_socket(uint32_t port);
-extern int  udp_send_packet(int fd, const char *addr, uint32_t port,
-                             const sentinel_packet_t *pkt);
-extern int  udp_recv_packet(int fd, sentinel_packet_t *pkt, char *src_addr);
 
 /* =========================================================================
  * 데모용 AES-256 키 (실제 배포 시 외부 KDP로 교체 필수)
@@ -451,9 +442,9 @@ int main(int argc, char *argv[])
     int          i;
 
     for (i = 1; i < argc - 1; i++) {
-        if      (strcmp(argv[i], "--id")       == 0) { node_id  = (uint8_t)atoi(argv[i+1]); }
-        else if (strcmp(argv[i], "--tcp-port") == 0) { tcp_port = (uint32_t)atoi(argv[i+1]); }
-        else if (strcmp(argv[i], "--udp-port") == 0) { udp_port = (uint32_t)atoi(argv[i+1]); }
+        if      (strcmp(argv[i], "--id")       == 0) { node_id  = (uint8_t)strtol(argv[i+1], NULL, 10); }
+        else if (strcmp(argv[i], "--tcp-port") == 0) { tcp_port = (uint32_t)strtol(argv[i+1], NULL, 10); }
+        else if (strcmp(argv[i], "--udp-port") == 0) { udp_port = (uint32_t)strtol(argv[i+1], NULL, 10); }
         else if (strcmp(argv[i], "--role")     == 0) {
             if (strcmp(argv[i+1], "sensor") == 0) role = NODE_ROLE_SENSOR;
             else if (strcmp(argv[i+1], "relay") == 0) role = NODE_ROLE_RELAY;
@@ -467,7 +458,7 @@ int main(int argc, char *argv[])
                     (void)memcpy(peer_addr, argv[i+1], alen);
                     peer_addr[alen] = '\0';
                 }
-                peer_port = (uint32_t)atoi(colon + 1);
+                peer_port = (uint32_t)strtol(colon + 1, NULL, 10);
             }
         }
     }

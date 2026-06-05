@@ -286,7 +286,6 @@ int sentinel_packet_deserialize(const uint8_t *buf, size_t buf_len,
 
     /* GCM 태그 복사 */
     (void)memcpy(pkt->aes_tag, buf + offset, SENTINEL_AES_TAG_LEN);
-    offset += SENTINEL_AES_TAG_LEN;
 
     pkt->crc32 = rx_crc;
 

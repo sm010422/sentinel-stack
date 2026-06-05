@@ -10,6 +10,7 @@
  */
 
 #include "protocol.h"
+#include "tcp_transport.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -22,25 +23,10 @@
 #include <netinet/in.h>
 #include <netinet/tcp.h>  /* TCP_NODELAY */
 #include <arpa/inet.h>
-#include <fcntl.h>
 
 /* =========================================================================
  * 내부 헬퍼
  * ========================================================================= */
-
-/**
- * @brief fd를 논블로킹 모드로 설정
- */
-static int set_nonblocking(int fd)
-{
-    int flags;
-
-    flags = fcntl(fd, F_GETFL, 0);
-    if (flags < 0) {
-        return -1;
-    }
-    return fcntl(fd, F_SETFL, flags | O_NONBLOCK);
-}
 
 /**
  * @brief TCP_NODELAY 옵션 설정 (Nagle 알고리즘 비활성화)
@@ -217,12 +203,15 @@ int tcp_send_packet(int fd, const sentinel_packet_t *pkt)
     sent = 0U;
     while (sent < total_len) {
         n = send(fd, tx_buf + sent, total_len - sent, MSG_NOSIGNAL);
-        if (n <= 0) {
+        if (n < 0) {
             if (errno == EINTR) {
                 continue; /* 시그널 인터럽트: 재시도 */
             }
             fprintf(stderr, "[TCP] send 실패: %s\n", strerror(errno));
             return -1;
+        }
+        if (n == 0) {
+            return -1; /* 연결 종료 */
         }
         sent += (size_t)n;
     }
@@ -295,7 +284,11 @@ int tcp_recv_packet(int fd, sentinel_packet_t *pkt)
 
     while (received < total_expected) {
         n = recv(fd, rx_buf + received, total_expected - received, 0);
-        if (n <= 0) {
+        if (n == 0) {
+            printf("[TCP] 연결 종료 (fd=%d)\n", fd);
+            return -1;
+        }
+        if (n < 0) {
             if (errno != EINTR) {
                 fprintf(stderr, "[TCP] recv 페이로드 실패: %s\n", strerror(errno));
             }

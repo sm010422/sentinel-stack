@@ -208,8 +208,6 @@ int rule_engine_evaluate(rule_engine_t *eng, const parsed_packet_t *pkt,
         if (r->proto == RULE_PROTO_UDP && !pkt->has_udp) continue;
         if (r->proto == RULE_PROTO_SENTINEL && !pkt->has_sentinel) continue;
 
-        window_total = 0U;
-
         switch (r->condition) {
 
         case RULE_COND_SYN_FLOOD:

@@ -1,0 +1,44 @@
+# .clang-tidy — sentinel-stack 정적 분석 설정
+#
+# 항공우주·방산 임베디드 SW 품질 기준 적용:
+#   - MISRA-C 2012 대응 bugprone / cert 검사
+#   - CERT C 코딩 표준 (임베디드 안전 코딩)
+#   - 실시간 시스템 성능 관련 검사
+
+Checks: >
+  bugprone-*,
+  cert-*,
+  clang-analyzer-*,
+  misc-*,
+  performance-*,
+  readability-*,
+  -bugprone-easily-swappable-parameters,
+  -cert-dcl03-c,
+  -cert-msc54-cpp,
+  -misc-include-cleaner,
+  -misc-use-internal-linkage,
+  -readability-magic-numbers,
+  -readability-function-cognitive-complexity,
+  -readability-identifier-length,
+  -readability-isolate-declaration,
+  -readability-uppercase-literal-suffix,
+  -bugprone-reserved-identifier
+
+# 경고를 오류로 처리하지 않음 (포트폴리오 → 점진적 개선)
+WarningsAsErrors: ''
+
+HeaderFilterRegex: '(rtos-scheduler|socket-comm|packet-analyzer|hal|hil-simulator)/.*\.h$'
+
+CheckOptions:
+  # 명명 규칙: snake_case (C 코드)
+  - key:   readability-identifier-naming.FunctionCase
+    value: lower_case
+  - key:   readability-identifier-naming.VariableCase
+    value: lower_case
+  - key:   readability-identifier-naming.ConstantCase
+    value: UPPER_CASE
+  - key:   readability-identifier-naming.MacroDefinitionCase
+    value: UPPER_CASE
+  # bugprone: 부호 변환 시 캐스트 명시 요구
+  - key:   bugprone-implicit-widening-of-multiplication-result.UseCXXStaticCastsInCppSources
+    value: 'false'
