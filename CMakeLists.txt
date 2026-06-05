@@ -83,7 +83,7 @@ endif()
 # ─────────────────────────────────────────────────────────────────────────────
 
 # BUILD_MODULE 옵션으로 특정 모듈만 빌드 가능
-set(BUILD_MODULE "all" CACHE STRING "빌드할 모듈 (all|rtos|comm|pcap)")
+set(BUILD_MODULE "all" CACHE STRING "빌드할 모듈 (all|rtos|comm|pcap|hal|hil)")
 
 enable_testing()
 
@@ -110,6 +110,24 @@ if(BUILD_MODULE STREQUAL "all" OR BUILD_MODULE STREQUAL "pcap")
     endif()
 endif()
 
+if(BUILD_MODULE STREQUAL "all" OR BUILD_MODULE STREQUAL "hal")
+    if(NOT BUILD_FOR_QEMU)
+        message(STATUS "Layer 4: HAL 시뮬레이터 (UART/RS-422/I2C/SPI/CAN) 빌드")
+        add_subdirectory(hal)
+    else()
+        message(STATUS "Layer 4: QEMU 빌드에서 HAL 시뮬레이터 제외")
+    endif()
+endif()
+
+if(BUILD_MODULE STREQUAL "all" OR BUILD_MODULE STREQUAL "hil")
+    if(NOT BUILD_FOR_QEMU)
+        message(STATUS "Layer 5: HIL 시뮬레이터 (6-DOF IMU) 빌드")
+        add_subdirectory(hil-simulator)
+    else()
+        message(STATUS "Layer 5: QEMU 빌드에서 HIL 시뮬레이터 제외")
+    endif()
+endif()
+
 # ─────────────────────────────────────────────────────────────────────────────
 # 요약 출력
 # ─────────────────────────────────────────────────────────────────────────────
@@ -120,7 +138,9 @@ message(STATUS "  sentinel-stack 빌드 설정 요약")
 message(STATUS "════════════════════════════════════════")
 message(STATUS "  버전       : ${PROJECT_VERSION}")
 message(STATUS "  빌드 타입  : ${CMAKE_BUILD_TYPE}")
-message(STATUS "  모듈       : ${BUILD_MODULE}")
+message(STATUS "  모듈       : ${BUILD_MODULE}
+  HAL        : UART / RS-422 / I2C / SPI / CAN
+  HIL        : 6-DOF IMU 시뮬레이터")
 message(STATUS "  QEMU 크로스: ${BUILD_FOR_QEMU}")
 message(STATUS "════════════════════════════════════════")
 message(STATUS "")
